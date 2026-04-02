@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="{{ .Site.BaseURL }}ocean-gestalt/">
+  <title>Here we are, again</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./favicon.ico">
+  <meta property="og:title" content="Here we are, again">
+  <meta property="og:type" content="ocean">
+  <meta property="og:description" content="Something you can carry around without getting wet.">
+  <meta property="og:image" content="{{ .Site.BaseURL }}ocean-gestalt/thumbnail.jpg">
+  <meta property="og:url" content="{{ .Site.BaseURL }}ocean-gestalt/index.html">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <style>
+  html, body {
+    background-color: black;
+  }
+
+  #canvas-container.hidden {
+    visibility: hidden;
+  }
+
+  </style>
+</head>
+<body id="landscape-container">
+  <div id="loading-spinner">
+  <div class="spinner"></div>
+  </div>
+    <div id="canvas-container" class="hidden">
+      <div id="info">You can move around this patch of ocean water.<br>
+        The arrows will move forward/back, side to side, and up/down.<br>
+        Drag to look around. <br>
+        It's your perspective that changes, not the world.<br>
+        </div>
+      <canvas id="canvas" oncontextmenu="event.preventDefault()">
+      </canvas>
+      <div id="title">Here we are, again</div>
+      <div id="overlay">
+        
+        <button id="start-audio" type="button"></button>
+        
+        <div id="control_grid">
+          <div class="button_container">
+            <div id="left_button_grid">
+              <div></div><button id="move_forward" class="overlay_button_large">&uarr;<br>W</button>
+              <div></div>
+              <button id="move_left" class="overlay_button_large">&larr;<br>A</button>
+              <div></div><button id="move_right" class="overlay_button_large">&rarr;<br>D</button>
+              <div></div>
+              <button id="move_back" class="overlay_button_large">&darr;<br>S</button>
+            </div>
+          </div><!--button_container-->
+          <div class="button_container">
+          </div><!-- button container-->
+          
+            <div class="button_container">
+              <div id="right_button_grid">
+                <button id="move_up" class="overlay_button_large">&uArr;<br>space</button>
+                <div></div>
+                <div></div>
+                <button id="move_down" class="overlay_button_large">&dArr;<br>shift</button>
+              </div>
+            </div><!-- button container -->
+          </div><!--- control grid -->
+          
+        <div id="bottom_container">
+          <div id="bottom_left">
+          <button id="toggle_info" onclick="toggleInfo()" class="overlay_button_small">?</button>
+          </div>
+          <div id="bottom_right">
+          <button id="activate_moveable" class="overlay_button_small">C</button>
+          <a id="github_button" href="https://github.com/GJMontreal/ocean-gestalt"></a>
+          </div>
+        </div>
+      </div><!--- overlay -->
+    </div><!-- <canvas-container> -->
+        <div id="console_output"></div>
+      
+        <script src="./keypress.js"></script>
+        <script async src="./ocean-gestalt.js"></script>
+  
+
+</body>
+
+<script type='text/javascript'>
+
+  function addListeners(id, key, code) {
+    var element = document.getElementById(id);
+    var downFunc = function () { 
+      simulateKeyDown(key.toUpperCase().charCodeAt(0),code,key); 
+    };
+    var upFunc = function () { 
+      simulateKeyUp(key.toUpperCase().charCodeAt(0),code,key); 
+    };
+    element.addEventListener("mousedown", downFunc);
+    element.addEventListener("touchstart", downFunc);
+    element.addEventListener("mouseup", upFunc);
+    element.addEventListener("touchend", upFunc);
+  }
+
+  addListeners("move_left", 'a', 'KeyA');
+  addListeners("move_right", 'd', 'KeyD');
+  addListeners("move_forward", 'w', 'KeyW');
+  addListeners("move_back", 's', 'KeyS');
+  addListeners("move_up", " ", 'Space');
+  addListeners("move_down", 'Shift','ShiftLeft');
+  addListeners("activate_moveable", 'c','KeyC');
+
+  
+  function toggleInfo(){
+    if(info.style.display == "block"){
+      info.style.display = "none";
+    }else{
+      info.style.display = "block";
+    }
+  }
+
+  var ticker = null;
+
+  var f = function () {
+    overlay.style.display = "block";
+    if (ticker) {
+      window.clearTimeout(ticker);
+      ticker = null;
+    }
+  };
+  document.addEventListener("mousedown", f);
+  document.addEventListener("touchstart", f);
+
+  f = function () {
+    ticker = setTimeout(() => { overlay.style.display = "none"; }, 5000);
+  };
+  document.addEventListener("mouseup", f);
+  document.addEventListener("touchend", f);
+
+
+document.getElementById('start-audio').addEventListener('click', () => {
+  // optional: resume WebAudio context explicitly if needed
+  const ctx = window.miniaudio?.get_device_by_index(0)?.webaudio;
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().then(() => {
+      Module.ccall('startAudio'); // call the exported function
+      document.getElementById('start-audio').classList.add('hidden');
+    }).catch(err => {
+      console.error('resume failed', err);
+    });
+  }
+}, { once: true });
+
+  // connect to canvas
+  var Module = {
+    arguments:["uniforms_web.json"],
+    print: (function () {
+      var element = document.getElementById('console_output');
+      return function (text) {
+        element.innerHTML = text;
+        console.log(text);
+        //element.innerHTML += text.replace('\n', '<br>', 'g') + '<br>';
+      };
+    })(),
+    canvas: document.getElementById('canvas'),
+    onRuntimeInitialized : () => 
+      {
+        const canvas_container = document.getElementById('canvas-container');
+        if( canvas_container){
+          canvas_container.classList.remove('hidden');
+        }
+        window.scrollBy(0,100);
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+           spinner.remove();
+        }
+
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            Module.ccall('onPageHidden', null, [], []);
+            console.log("page hidden");
+          } else {
+            Module.ccall('onPageVisible', null, [], []);
+          }
+        });
+
+        // hide the title text after 5s
+        setTimeout(() => { title.style.display = "none"; }, 10000);
+      }   
+  };
+
+
+  function setViewportHeight() {
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+
+window.addEventListener('resize', setViewportHeight);
+window.addEventListener('orientationchange', setViewportHeight);
+
+
+
+
+setViewportHeight();
+
+</script>
+<style>
+ body {
+    background-color: black;
+  }
+
+  #canvas-container {
+    display: flex;
+    flex-direction: column;
+    position:relative;
+    height: 100vh;
+    width: 100%;
+    user-select: none;
+    touch-action: none;
+    -webkit-user-select: none;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  #overlay {
+    position: absolute;
+    display: none;
+    /* Hidden by default */
+    left: 0px;
+    width: 100%;
+    bottom: 0;  
+    background-color: rgba(0, 0, 0, 0);
+    z-index: 2;
+    cursor: pointer;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .overlay_button_large,
+  .overlay_button_small,
+  #github_button {
+    background-color: rgba(0, 0, 0, 0.5);
+    top: 50%;
+    left: 50%;
+    color: white;
+    pointer-events: auto;
+    user-select: none;
+    padding: 0;
+  }
+
+  .overlay_button_large {
+    font-size: 15px;
+    width: 50px;
+    height: 50px;
+    margin: 5px;
+  }
+
+  .overlay_button_small,
+  #github_button {
+    font-size: 10px;
+    width: 40px;
+    height: 40px;
+    margin: 10px;
+  }
+
+  #control_grid {
+    display: grid;
+    grid-template-columns: auto auto auto;
+  }
+
+  #left_button_grid {
+    display: grid;
+    grid-template-columns: auto auto auto;
+  }
+
+  #bottom_container {
+  width:100%;
+  }
+
+  #bottom_right {
+    display: flex;
+    float:right;
+    justify-content: right;
+    align-items: center;
+  }
+
+  #bottom_left {
+    float:left;
+    justify-content: left;
+    align-items: center;
+  }
+
+  .button_container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+
+  #github_button {
+    background: url(./github-mark-white.png) no-repeat;
+    background-size: 40px 40px;
+    background-position: center;
+  }
+
+  #console_output { 
+    display: none;
+    color:white;
+    }
+
+  .icon {
+    font-size: 20px;
+    }
+
+  #canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background-color: black;
+}
+
+  #title, #info {
+    position: absolute;
+    top:10px;
+    width:100%;
+    color: white;
+    text-align: center;
+    font-family: sans-serif;
+    z-index: 3
+  }
+
+  #info{
+    top:40px;
+    display: none;
+    font-size:smaller;
+  }
+
+/* From https://fuel-efficient-vehicles.org/pwsdb/?p=330 */
+#landscape-container { 
+    display:block; 
+  }
+
+  @media only screen and (orientation:portrait){ 
+  html { padding-bottom: 20%;
+     }
+  #overlay{
+      bottom: 15%;
+     }  
+} 
+
+#start-audio {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+  z-index: 9999;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+#loading-spinner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid white;
+  border-top: 4px solid #888;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+</style>
+
+</html>
